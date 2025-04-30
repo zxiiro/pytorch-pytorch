@@ -1,0 +1,42 @@
+name: test
+
+on:
+  pull_request:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "hello"
+
+      - name: Print OIDC Token Sub Claim
+        run: |
+          # Get the OIDC token
+          TOKEN=$(curl -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r '.value')
+
+          # Extract the payload (second part of JWT, between the first and second dots)
+          PAYLOAD=$(echo "$TOKEN" | cut -d '.' -f 2)
+
+          # Decode the Base64 payload and parse it with jq to get the sub claim
+          echo "Decoded JWT Payload:"
+          echo "$PAYLOAD" | base64 -d | jq .
+
+          echo "Sub Claim:"
+          echo "$PAYLOAD" | base64 -d | jq -r '.sub'
+
+        env:
+          ACTIONS_ID_TOKEN_REQUEST_TOKEN: ${{ secrets.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
+          ACTIONS_ID_TOKEN_REQUEST_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::308535385114:role/gha_workflow_s3_and_ecr_read_only
+          role-session-name: gha-bazel-build
+          aws-region: us-east-1
